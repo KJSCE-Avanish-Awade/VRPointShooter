@@ -1,3 +1,6 @@
+import VRGame from '@/components/vr-game';
+
 export default function Home() {
-  return <></>;
+  // Render the main VR game component
+  return <VRGame />;
 }
