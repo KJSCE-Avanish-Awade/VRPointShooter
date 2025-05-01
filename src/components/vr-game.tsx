@@ -1,9 +1,10 @@
+
 "use client";
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+// import { Switch } from '@/components/ui/switch'; // Removed
+// import { Label } from '@/components/ui/label'; // Removed
 import { Button } from '@/components/ui/button';
 import { WebXRButton } from 'three/examples/jsm/webxr/WebXRButton.js'; // Use correct path
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'; // Use correct path for VRButton
@@ -33,6 +34,8 @@ const SCENE_BOUNDS = 10; // Defines the area where spheres can spawn
 const HIT_FLASH_DURATION = 150; // ms
 const INITIAL_SPHERE_COLOR = 0xffffff; // White
 const HIT_SPHERE_COLOR = 0x00ff00; // Bright green
+// Placeholder background URL
+const BACKGROUND_IMAGE_URL = 'https://picsum.photos/2048/1024'; // Replace with actual path if needed
 
 const VRGame: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -43,87 +46,12 @@ const VRGame: React.FC = () => {
   const spheresRef = useRef<THREE.Mesh[]>([]);
   const scoreRef = useRef(0);
   const [score, setScore] = useState(0);
-  const [isCardboardMode, setIsCardboardMode] = useState(false);
+  // const [isCardboardMode, setIsCardboardMode] = useState(false); // Removed Cardboard state
   const vrButtonContainerRef = useRef<HTMLDivElement>(null);
   const xrSessionRef = useRef<XRSession | null>(null);
-  const deviceOrientationControls = useRef<DeviceOrientationControls | null>(null);
+  // const deviceOrientationControls = useRef<any | null>(null); // Removed DeviceOrientationControls ref
   const crosshairRef = useRef<THREE.Mesh | null>(null);
-
-  // Device Orientation Controls (simplified version)
-  class DeviceOrientationControls {
-      object: THREE.Object3D;
-      screenOrientation = 0;
-      alphaOffset = 0; // radians
-      enabled = true;
-      deviceOrientation: any = {}; // Store orientation data
-
-      constructor(object: THREE.Object3D) {
-          this.object = object;
-          this.object.rotation.reorder('YXZ');
-          this.connect();
-      }
-
-      onDeviceOrientationChangeEvent = (event: DeviceOrientationEvent) => {
-          this.deviceOrientation = event;
-      };
-
-      onScreenOrientationChangeEvent = () => {
-          this.screenOrientation = (window.orientation as number) || 0;
-      };
-
-      connect = () => {
-          this.onScreenOrientationChangeEvent(); // run once on load
-          // iOS 13+ requires user interaction for DeviceOrientationEvent
-          if ( window.DeviceOrientationEvent !== undefined && typeof (DeviceOrientationEvent as any).requestPermission === 'function' ) {
-                (DeviceOrientationEvent as any).requestPermission().then( (response : string) => {
-                    if ( response == 'granted' ) {
-                        window.addEventListener( 'orientationchange', this.onScreenOrientationChangeEvent );
-                        window.addEventListener( 'deviceorientation', this.onDeviceOrientationChangeEvent );
-                    }
-                } ).catch( function ( error : any ) {
-                    console.error( 'THREE.DeviceOrientationControls: Unable to use DeviceOrientation API:', error );
-                } );
-          } else {
-                window.addEventListener( 'orientationchange', this.onScreenOrientationChangeEvent );
-                window.addEventListener( 'deviceorientation', this.onDeviceOrientationChangeEvent );
-          }
-          this.enabled = true;
-      };
-
-      disconnect = () => {
-          window.removeEventListener( 'orientationchange', this.onScreenOrientationChangeEvent );
-          window.removeEventListener( 'deviceorientation', this.onDeviceOrientationChangeEvent );
-          this.enabled = false;
-      };
-
-      update = () => {
-          if (this.enabled === false || !this.deviceOrientation.alpha) {
-              return;
-          }
-
-          const alpha = this.deviceOrientation.alpha ? THREE.MathUtils.degToRad( this.deviceOrientation.alpha ) + this.alphaOffset : 0; // Z
-          const beta = this.deviceOrientation.beta ? THREE.MathUtils.degToRad( this.deviceOrientation.beta ) : 0; // X'
-          const gamma = this.deviceOrientation.gamma ? THREE.MathUtils.degToRad( this.deviceOrientation.gamma ) : 0; // Y''
-          const orient = this.screenOrientation ? THREE.MathUtils.degToRad( this.screenOrientation ) : 0; // O
-
-          const q = new THREE.Quaternion();
-          const zee = new THREE.Vector3( 0, 0, 1 );
-          const euler = new THREE.Euler();
-          const q0 = new THREE.Quaternion();
-          const q1 = new THREE.Quaternion( - Math.sqrt( 0.5 ), 0, 0, Math.sqrt( 0.5 ) ); // - PI/2 around the x-axis
-
-          euler.set( beta, alpha, - gamma, 'YXZ' ); // 'ZXY' for the device, but 'YXZ' for us
-          q.setFromEuler( euler ); // orient the device
-          q.multiply( q1 ); // camera looks out the back of the device, not the top
-          q.multiply( q0.setFromAxisAngle( zee, - orient ) ); // adjust for screen orientation
-
-          this.object.quaternion.copy( q );
-      };
-
-      dispose = () => {
-          this.disconnect();
-      };
-  }
+  const backgroundTextureRef = useRef<THREE.Texture | null>(null);
 
 
   // --- Initialization and Setup ---
@@ -134,8 +62,32 @@ const VRGame: React.FC = () => {
 
     // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x222222); // Dark gray background
+    // scene.background = new THREE.Color(0x222222); // Replaced with texture
     sceneRef.current = scene;
+
+    // Background Texture
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load(
+        BACKGROUND_IMAGE_URL,
+        (texture) => {
+            texture.mapping = THREE.EquirectangularReflectionMapping; // Use equirectangular mapping for panorama
+            scene.background = texture;
+            backgroundTextureRef.current = texture;
+             // Add AI hint for the placeholder image
+            if (mountRef.current) {
+                const imgHint = document.createElement('div');
+                imgHint.setAttribute('data-ai-hint', 'night sky stars mountain');
+                imgHint.style.display = 'none'; // Hide the hint element
+                mountRef.current.appendChild(imgHint);
+            }
+        },
+        undefined, // onProgress callback (optional)
+        (err) => {
+            console.error('An error happened loading the background texture:', err);
+             scene.background = new THREE.Color(0x222222); // Fallback background color
+        }
+    );
+
 
     // Camera
     const camera = new THREE.PerspectiveCamera(
@@ -161,7 +113,7 @@ const VRGame: React.FC = () => {
       vrButtonContainerRef.current.appendChild(vrButtonElement);
       // Style the VR button if needed
        vrButtonElement.style.position = 'absolute';
-       vrButtonElement.style.bottom = '60px'; // Adjust position
+       vrButtonElement.style.bottom = '20px'; // Adjusted position slightly up
        vrButtonElement.style.left = '50%';
        vrButtonElement.style.transform = 'translateX(-50%)';
        vrButtonElement.style.zIndex = '100';
@@ -189,9 +141,9 @@ const VRGame: React.FC = () => {
     // Spheres
     createSpheres(scene);
 
-    // Device Orientation for Cardboard mode
-    deviceOrientationControls.current = new DeviceOrientationControls(camera);
-    deviceOrientationControls.current.enabled = false; // Initially disabled
+    // Device Orientation for Cardboard mode - REMOVED
+    // deviceOrientationControls.current = new DeviceOrientationControls(camera);
+    // deviceOrientationControls.current.enabled = false; // Initially disabled
 
 
     // Animation Loop
@@ -199,9 +151,10 @@ const VRGame: React.FC = () => {
       renderer.setAnimationLoop(() => {
         if (!renderer || !scene || !camera) return;
 
-        if (isCardboardMode && deviceOrientationControls.current?.enabled) {
-            deviceOrientationControls.current.update();
-        }
+        // Removed Cardboard mode update
+        // if (isCardboardMode && deviceOrientationControls.current?.enabled) {
+        //     deviceOrientationControls.current.update();
+        // }
 
         checkHits();
         renderer.render(scene, camera);
@@ -229,27 +182,45 @@ const VRGame: React.FC = () => {
         renderer.xr.getSession()?.end();
       }
       window.removeEventListener('resize', handleResize);
-      if (currentMount) {
-        currentMount.removeChild(renderer.domElement);
-      }
-      // Dispose Three.js objects
-       spheresRef.current.forEach(sphere => {
-         scene.remove(sphere);
-         sphere.geometry.dispose();
-         (sphere.material as THREE.Material).dispose();
-       });
-       spheresRef.current = [];
-       scene.remove(camera);
-       if (crosshairRef.current) {
-          camera.remove(crosshairRef.current);
-          crosshairRef.current.geometry.dispose();
-          (crosshairRef.current.material as THREE.Material).dispose();
-          crosshairRef.current = null;
+       if (currentMount && renderer.domElement) {
+         // Check if vrButtonContainerRef.current has children before removing
+         if (vrButtonContainerRef.current && vrButtonContainerRef.current.firstChild) {
+             vrButtonContainerRef.current.removeChild(vrButtonContainerRef.current.firstChild);
+         }
+         if (currentMount.contains(renderer.domElement)) {
+            currentMount.removeChild(renderer.domElement);
+         }
+          // Remove AI hint element
+          const hintElement = currentMount.querySelector('div[data-ai-hint]');
+          if (hintElement) {
+              currentMount.removeChild(hintElement);
+          }
        }
-       scene.remove(ambientLight);
-       scene.remove(directionalLight);
+      // Dispose Three.js objects
+       if(sceneRef.current) {
+           spheresRef.current.forEach(sphere => {
+             sceneRef.current?.remove(sphere);
+             sphere.geometry.dispose();
+             (sphere.material as THREE.Material).dispose();
+           });
+           spheresRef.current = [];
+           if(cameraRef.current) sceneRef.current.remove(cameraRef.current);
+           if (crosshairRef.current && cameraRef.current) {
+              cameraRef.current.remove(crosshairRef.current);
+              crosshairRef.current.geometry.dispose();
+              (crosshairRef.current.material as THREE.Material).dispose();
+              crosshairRef.current = null;
+           }
+           sceneRef.current.remove(ambientLight);
+           sceneRef.current.remove(directionalLight);
+       }
+       if(backgroundTextureRef.current) {
+           backgroundTextureRef.current.dispose();
+           backgroundTextureRef.current = null;
+           if(sceneRef.current) sceneRef.current.background = null;
+       }
        renderer.dispose();
-       deviceOrientationControls.current?.dispose();
+      // deviceOrientationControls.current?.dispose(); // Removed
     };
   }, []); // Empty dependency array ensures this runs only once on mount
 
@@ -258,7 +229,7 @@ const VRGame: React.FC = () => {
   const createSpheres = (scene: THREE.Scene) => {
     const sphereGeometry = new THREE.SphereGeometry(SPHERE_RADIUS, 32, 32);
     for (let i = 0; i < SPHERE_COUNT; i++) {
-      const sphereMaterial = new THREE.MeshStandardMaterial({ color: INITIAL_SPHERE_COLOR });
+      const sphereMaterial = new THREE.MeshStandardMaterial({ color: INITIAL_SPHERE_COLOR, metalness: 0.2, roughness: 0.8 }); // Slightly less shiny
       const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
       positionSphereRandomly(sphere);
       sphere.userData.hit = false; // Custom data to track hit state
@@ -274,7 +245,7 @@ const VRGame: React.FC = () => {
       (Math.random() - 0.5) * 2 * SCENE_BOUNDS - SCENE_BOUNDS // z (mostly in front)
     );
     // Ensure spheres don't spawn too close to the camera origin
-    if (sphere.position.length() < 2) {
+    if (sphere.position.length() < 3) { // Increased minimum distance
         positionSphereRandomly(sphere); // Reposition if too close
     }
     sphere.userData.hit = false; // Reset hit state
@@ -315,65 +286,9 @@ const VRGame: React.FC = () => {
 
   // --- Event Handlers ---
 
-  const handleCardboardToggle = (checked: boolean) => {
-    setIsCardboardMode(checked);
-     if (deviceOrientationControls.current) {
-        deviceOrientationControls.current.enabled = checked;
-        if (checked) {
-            // Try requesting permission if needed
-             if ( window.DeviceOrientationEvent !== undefined && typeof (DeviceOrientationEvent as any).requestPermission === 'function' ) {
-                 (DeviceOrientationEvent as any).requestPermission().then( (response : string) => {
-                     if ( response !== 'granted' ) {
-                          console.warn("Device orientation permission not granted.");
-                          setIsCardboardMode(false); // Revert toggle if permission denied
-                          if(deviceOrientationControls.current) deviceOrientationControls.current.enabled = false;
-                     }
-                 }).catch((e) => {
-                     console.error("Error requesting device orientation permission:", e);
-                     setIsCardboardMode(false); // Revert toggle on error
-                     if(deviceOrientationControls.current) deviceOrientationControls.current.enabled = false;
-                 });
-             }
-        }
-    }
-    // Adjust renderer for side-by-side view if needed (Three.js handles this automatically with VRButton)
-    // However, for non-WebXR Cardboard, you might need manual stereo rendering setup (more complex)
-    console.log("Cardboard Mode:", checked);
+  // Removed handleCardboardToggle function
 
-    // If using Android WebView, potentially notify the native app
-    if (window.Android) {
-      window.Android.postMessage(JSON.stringify({ type: 'cardboardToggle', enabled: checked }));
-    }
-    // Similar for iOS WKWebView
-     if (window.webkit?.messageHandlers?.motionHandler) {
-         window.webkit.messageHandlers.motionHandler.postMessage(JSON.stringify({ type: 'cardboardToggle', enabled: checked }));
-     }
-  };
-
-   // Optional: Listener for Android WebView messages (if Android sends data)
-   useEffect(() => {
-     const handleAndroidMessage = (event: MessageEvent) => {
-       try {
-         const data = JSON.parse(event.data);
-         if (data.type === 'motionData' && deviceOrientationControls.current && isCardboardMode) {
-           // Process motion data from Android if needed - Note: DeviceOrientationEvent is usually preferred
-           // Example: Directly set camera orientation (more complex, requires quaternion math)
-           // console.log("Received motion data:", data.values);
-           // This part is highly dependent on the format of data sent from Android
-         }
-       } catch (e) {
-         // console.error("Error parsing message from Android:", e);
-       }
-     };
-
-     // Add listener if running inside an Android WebView context
-     // The actual mechanism depends on how the WebView bridge is set up
-     // document.addEventListener('message', handleAndroidMessage); // Example for standard JS bridge
-
-     return () => {
-       // document.removeEventListener('message', handleAndroidMessage);
-     };
-   }, [isCardboardMode]); // Re-run if cardboard mode changes
+   // Removed Android/iOS message handling useEffect
 
 
   return (
@@ -381,6 +296,8 @@ const VRGame: React.FC = () => {
       {/* UI Overlay */}
       <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-2 text-accent">
         <div className="text-2xl font-bold">Score: {score}</div>
+        {/* Removed Cardboard Toggle Switch and Label */}
+        {/*
         <div className="flex items-center space-x-2">
           <Switch
             id="cardboard-mode"
@@ -392,6 +309,7 @@ const VRGame: React.FC = () => {
             Cardboard VR
           </Label>
         </div>
+         */}
       </div>
        {/* Container for VR Button */}
       <div ref={vrButtonContainerRef} id="vr-button-container" className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
