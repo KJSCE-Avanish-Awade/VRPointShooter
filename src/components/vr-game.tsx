@@ -1,12 +1,11 @@
 
 "use client";
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, ReactNode } from 'react';
 import * as THREE from 'three';
 // import { Switch } from '@/components/ui/switch'; // Removed
 // import { Label } from '@/components/ui/label'; // Removed
 import { Button } from '@/components/ui/button';
-import { WebXRButton } from 'three/examples/jsm/webxr/WebXRButton.js'; // Use correct path
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'; // Use correct path for VRButton
 
 // Define interfaces for Android WebView communication if needed
@@ -35,18 +34,58 @@ const HIT_FLASH_DURATION = 150; // ms
 const INITIAL_SPHERE_COLOR = 0xffffff; // White
 const HIT_SPHERE_COLOR = 0x00ff00; // Bright green
 // Placeholder background URL
-const BACKGROUND_IMAGE_URL = 'https://picsum.photos/2048/1024'; // Replace with actual path if needed
+const BACKGROUND_IMAGE_URL = '/bg_img.png'; // Use local path
+
+type GameState = "home" | "playing" | "paused";
+
+const HomeScreen: React.FC<{ onStartGame: () => void }> = ({ onStartGame }) => {
+  return (
+  <div className="w-full h-full flex flex-col justify-center items-center absolute top-0 left-0 bg-black z-50">
+    <h1 className="text-4xl text-white font-bold mb-8">VR Game</h1>
+    <Button onClick={onStartGame}>Start Game</Button>
+  </div>
+);};
+
+const PauseScreen: React.FC<{ onResume: () => void; onGoHome: () => void }> = ({ onResume, onGoHome }) => (
+  <div className="w-full h-full flex flex-col justify-center items-center absolute top-0 left-0 bg-black z-50">
+    <h1 className="text-4xl text-white font-bold mb-8">Game Paused</h1>
+    <Button onClick={onResume} className="mb-4">Resume</Button><Button onClick={onGoHome}>Back to Home</Button>
+  </div>
+);
 
 const VRGame: React.FC = () => {
-  const mountRef = useRef<HTMLDivElement>(null);
+
+  const [gameState, setGameState] = useState<GameState>('home');
+  const [score, setScore] = useState(0);
+  const scoreRef = useRef(0);
+
+  const startGame = () => {
+    setScore(0);
+    scoreRef.current = 0;
+    setGameState('playing');
+
+  };
+
+   const pauseGame = () => {
+     setGameState('paused');
+   };
+ 
+   const resumeGame = () => {
+     setGameState('playing');
+   };
+ 
+  const renderContent = (): ReactNode => {
+    if (gameState === "home") return <HomeScreen onStartGame={startGame} />;
+    if (gameState === "paused")
+      return <PauseScreen onResume={resumeGame} onGoHome={() => setGameState("home")} />;
+     return null
+  };
+    const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const raycasterRef = useRef(new THREE.Raycaster());
   const spheresRef = useRef<THREE.Mesh[]>([]);
-  const scoreRef = useRef(0);
-  const [score, setScore] = useState(0);
-  // const [isCardboardMode, setIsCardboardMode] = useState(false); // Removed Cardboard state
   const vrButtonContainerRef = useRef<HTMLDivElement>(null);
   const xrSessionRef = useRef<XRSession | null>(null);
   // const deviceOrientationControls = useRef<any | null>(null); // Removed DeviceOrientationControls ref
@@ -68,11 +107,32 @@ const VRGame: React.FC = () => {
     // Background Texture
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load(
-        BACKGROUND_IMAGE_URL,
-        (texture) => {
-            texture.mapping = THREE.EquirectangularReflectionMapping; // Use equirectangular mapping for panorama
-            scene.background = texture;
-            backgroundTextureRef.current = texture;
+      BACKGROUND_IMAGE_URL,
+      (texture) => {
+        // Create a sphere geometry for the background
+        const backgroundGeometry = new THREE.SphereGeometry(500, 60, 40); // Large radius
+        // Create a material with the texture
+        const backgroundMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          side: THREE.BackSide, // Render inside of the sphere
+          color: new THREE.Color(0x808080) // Dark gray color
+        });       
+        // Create a mesh with the geometry and material
+        const backgroundMesh = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+        scene.add(backgroundMesh); 
+         // Lower the opacity of the backgroundMaterial
+         backgroundMaterial.transparent = true; // Enable transparency
+         backgroundMaterial.opacity = 0.5;
+        
+        backgroundTextureRef.current = texture;
+        // No need to set scene.background
+
+        
+
+        
+
+            
+
              // Add AI hint for the placeholder image
             if (mountRef.current) {
                 const imgHint = document.createElement('div');
@@ -84,7 +144,14 @@ const VRGame: React.FC = () => {
         undefined, // onProgress callback (optional)
         (err) => {
             console.error('An error happened loading the background texture:', err);
-             scene.background = new THREE.Color(0x222222); // Fallback background color
+             // Use a basic background color if the texture fails
+            scene.background = new THREE.Color(0x222222);
+
+             // Remove the AI hint element if present
+            const hintElement = mountRef.current?.querySelector('div[data-ai-hint]');
+            if (hintElement) {
+                mountRef.current?.removeChild(hintElement);
+            }
         }
     );
 
@@ -216,6 +283,7 @@ const VRGame: React.FC = () => {
        }
        if(backgroundTextureRef.current) {
            backgroundTextureRef.current.dispose();
+           
            backgroundTextureRef.current = null;
            if(sceneRef.current) sceneRef.current.background = null;
        }
@@ -292,9 +360,9 @@ const VRGame: React.FC = () => {
 
 
   return (
-    <div ref={mountRef} className="w-full h-full relative">
+    <div ref={mountRef} className="w-full h-full relative">{renderContent()}
       {/* UI Overlay */}
-      <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-2 text-accent">
+        {gameState === 'playing' && <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-2 text-accent">
         <div className="text-2xl font-bold">Score: {score}</div>
         {/* Removed Cardboard Toggle Switch and Label */}
         {/*
@@ -309,8 +377,8 @@ const VRGame: React.FC = () => {
             Cardboard VR
           </Label>
         </div>
-         */}
-      </div>
+         */}{gameState === "playing" && <Button className="mt-2" onClick={pauseGame}>Pause</Button>}
+      </div>}
        {/* Container for VR Button */}
       <div ref={vrButtonContainerRef} id="vr-button-container" className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-10">
          {/* VRButton will be appended here by useEffect */}
